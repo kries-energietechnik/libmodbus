@@ -1304,3 +1304,174 @@ modbus_new_rtu(const char *device, int baud, char parity, int data_bit, int stop
 
     return ctx;
 }
+
+/*
+ * ------------------------------------------------------------------------------------------------
+ * 2022-09-20 Kries-Energietechnik GmbH & Co. KG: Backend and API for nodev I/O added
+ */
+
+typedef struct _modbus_rtu_nodev {
+    /* Unused, but must be present! */
+    char *device;
+
+    /* Custom nodev I/O functions */
+    int (*send)(const uint8_t *req, int req_length);
+    int (*recv)(uint8_t *rsp, int rsp_length);
+    int (*poll)(uint32_t to_sec, uint32_t to_usec);
+
+    /* To handle many slaves on the same link */
+    int confirmation_to_ignore;
+} modbus_rtu_nodev_t;
+
+static int _modbus_rtu_nodev_connect(modbus_t *ctx)
+{
+    return 0;
+}
+
+static void _modbus_rtu_nodev_close(modbus_t *ctx)
+{
+    return;
+}
+
+static int _modbus_rtu_nodev_select(modbus_t *ctx, fd_set *rset,
+                                    struct timeval *tv, int length_to_read)
+{
+    modbus_rtu_nodev_t *ctx_rtu_nodev;
+    int rv;
+    uint32_t to_sec, to_usec;
+
+    if (tv->tv_sec < 0 || tv->tv_sec > 10 || tv->tv_usec < 0 || tv->tv_usec > 999999) {
+        if (ctx->debug) {
+            fprintf(stderr, "Timeout duration not supported\n");
+        }
+        /* Invalid timeout duration */
+        errno = EINVAL;
+        return -1;
+    }
+    to_sec = tv->tv_sec;
+    to_usec = tv->tv_usec;
+
+    ctx_rtu_nodev = (modbus_rtu_nodev_t *)ctx->backend_data;
+    rv = ctx_rtu_nodev->poll(to_sec, to_usec);
+    if (rv == -1) {
+        if (ctx->debug) {
+            fprintf(stderr, "Custom function nodev_poll() failed\n");
+        }
+        /* I/O error */
+        errno = EIO;
+        return -1;
+    }
+    if (rv == 0) {
+        /* Timeout */
+        errno = ETIMEDOUT;
+        return -1;
+    }
+
+    /* Data available */
+    return 1;
+}
+
+static ssize_t _modbus_rtu_nodev_send(modbus_t *ctx, const uint8_t *req, int req_length)
+{
+    modbus_rtu_nodev_t *ctx_rtu_nodev;
+    int rv;
+
+    ctx_rtu_nodev = (modbus_rtu_nodev_t *)ctx->backend_data;
+    rv = ctx_rtu_nodev->send(req, req_length);
+    if (rv < 0 || rv > 32767) {
+        if (ctx->debug) {
+            fprintf(stderr, "Custom function nodev_send() failed\n");
+        }
+        /* I/O error */
+        errno = EIO;
+        return -1;
+    }
+
+    /* The type ssize_t shall be capable of storing values at least in the range [-1, 32767] */
+    return (ssize_t)rv;
+}
+
+static ssize_t _modbus_rtu_nodev_recv(modbus_t *ctx, uint8_t *rsp, int rsp_length)
+{
+    modbus_rtu_nodev_t *ctx_rtu_nodev;
+    int rv;
+
+    ctx_rtu_nodev = (modbus_rtu_nodev_t *)ctx->backend_data;
+    rv = ctx_rtu_nodev->recv(rsp, rsp_length);
+    if (rv < 0 || rv > 32767) {
+        if (ctx->debug) {
+            fprintf(stderr, "Custom function nodev_recv() failed\n");
+        }
+        /* I/O error */
+        errno = EIO;
+        return -1;
+    }
+
+    /* The type ssize_t shall be capable of storing values at least in the range [-1, 32767] */
+    return (ssize_t)rv;
+}
+
+static int _modbus_rtu_nodev_flush(modbus_t *ctx)
+{
+    return 0;
+}
+
+static const modbus_backend_t _modbus_rtu_nodev_backend = {
+    _MODBUS_BACKEND_TYPE_RTU,
+    _MODBUS_RTU_HEADER_LENGTH,
+    _MODBUS_RTU_CHECKSUM_LENGTH,
+    MODBUS_RTU_MAX_ADU_LENGTH,
+    _modbus_set_slave,
+    _modbus_rtu_build_request_basis,
+    _modbus_rtu_build_response_basis,
+    _modbus_rtu_prepare_response_tid,
+    _modbus_rtu_send_msg_pre,
+    _modbus_rtu_nodev_send,
+    _modbus_rtu_receive,
+    _modbus_rtu_nodev_recv,
+    _modbus_rtu_check_integrity,
+    _modbus_rtu_pre_check_confirmation,
+    _modbus_rtu_nodev_connect,
+    _modbus_rtu_nodev_close,
+    _modbus_rtu_nodev_flush,
+    _modbus_rtu_nodev_select,
+    _modbus_rtu_free
+};
+
+modbus_t *modbus_new_rtu_nodev(int (*nodev_send)(const uint8_t *req, int req_length),
+                               int (*nodev_recv)(uint8_t *rsp, int rsp_length),
+                               int (*nodev_poll)(uint32_t to_sec, uint32_t to_usec))
+{
+    modbus_t *ctx;
+    modbus_rtu_nodev_t *ctx_rtu_nodev;
+
+    ctx = (modbus_t *)malloc(sizeof(modbus_t));
+    if (ctx == NULL) {
+        return NULL;
+    }
+
+    _modbus_init_common(ctx);
+    ctx->backend = &_modbus_rtu_nodev_backend;
+    ctx->backend_data = (modbus_rtu_nodev_t *)malloc(sizeof(modbus_rtu_nodev_t));
+    if (ctx->backend_data == NULL) {
+        modbus_free(ctx);
+        errno = ENOMEM;
+        return NULL;
+    }
+    ctx_rtu_nodev = (modbus_rtu_nodev_t *)ctx->backend_data;
+
+    /*
+     * Device entry is unused, but must be present!
+     * _modbus_rtu_free() calls free() on it.
+     * It is allowed to call free() with NULL as parameter.
+     */
+    ctx_rtu_nodev->device = NULL;
+
+    ctx_rtu_nodev->send = nodev_send;
+    ctx_rtu_nodev->recv = nodev_recv;
+    ctx_rtu_nodev->poll = nodev_poll;
+
+    ctx_rtu_nodev->confirmation_to_ignore = FALSE;
+
+    return ctx;
+}

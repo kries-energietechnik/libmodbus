@@ -19,6 +19,11 @@ MODBUS_BEGIN_DECLS
 MODBUS_API modbus_t *
 modbus_new_rtu(const char *device, int baud, char parity, int data_bit, int stop_bit);
 
+/* 2022-09-20 Kries-Energietechnik GmbH & Co. KG: API for nodev I/O added */
+MODBUS_API modbus_t* modbus_new_rtu_nodev(int (*nodev_send)(const uint8_t *req, int req_length),
+                                          int (*nodev_recv)(uint8_t *rsp, int rsp_length),
+                                          int (*nodev_poll)(uint32_t to_sec, uint32_t to_usec));
+
 #define MODBUS_RTU_RS232 0
 #define MODBUS_RTU_RS485 1
 
