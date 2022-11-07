@@ -1307,11 +1307,11 @@ modbus_new_rtu(const char *device, int baud, char parity, int data_bit, int stop
 
 /*
  * ------------------------------------------------------------------------------------------------
- * 2022-09-20 Kries-Energietechnik GmbH & Co. KG: Backend and API for nodev I/O added
+ * 2022-11-03 Kries-Energietechnik GmbH & Co. KG: Backend and API for nodev I/O added
  */
 
 typedef struct _modbus_rtu_nodev {
-    /* Unused, but must be present! */
+    /* Dummy device (not used for communication) */
     char *device;
 
     /* Custom nodev I/O functions */
@@ -1325,11 +1325,71 @@ typedef struct _modbus_rtu_nodev {
 
 static int _modbus_rtu_nodev_connect(modbus_t *ctx)
 {
+    /* _modbus_init_common() already has initialized ctx->s to -1.
+     * _modbus_receive_msg() later calls FD_SET(ctx->s, &rset).
+     */
+#if defined(_WIN32)
+    /* _modbus_rtu_connect() does not configure ctx->s for Windows */
+#else
+    /* Unix systems need a valid descriptor as first parameter for FD_SET()
+     *
+     * Quoted from POSIX standard:
+     * https://pubs.opengroup.org/onlinepubs/9699919799/functions/select.html
+     * | [...]
+     * | FD_SET(fd, fdsetp) shall add the file descriptor fd to the set pointed to by fdsetp.
+     * | If the file descriptor fd is already in this set, there shall be no effect on the set,
+     * | nor will an error be returned.
+     * | [...]
+     * | The behavior of these macros is undefined if the fd argument is less than 0 or greater
+     * | than or equal to FD_SETSIZE, or if fd is not a valid file descriptor, or if any of the
+     * | arguments are expressions with side-effects.
+     *
+     * For defined behaviour we need a valid filedscriptor for ctx->s.
+     * stdin/stdout/stderr may be closed if the application is a daemon.
+     * POSIX defines that on conforming systems the file "/dev/null" shall exist:
+     * https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap10.html
+     */
+    modbus_rtu_nodev_t *ctx_rtu_nodev = (modbus_rtu_nodev_t *)ctx->backend_data;
+    int flags = O_RDWR | O_NOCTTY;
+
+#ifdef O_CLOEXEC
+    flags |= O_CLOEXEC;
+#endif
+    ctx_rtu_nodev = (modbus_rtu_nodev_t *)ctx->backend_data;
+    ctx->s = open(ctx_rtu_nodev->device, flags);
+    if (ctx->s == -1) {
+        if (ctx->debug) {
+            fprintf(stderr, "ERROR Can't open the file %s (%s)\n",
+                    ctx_rtu_nodev->device, strerror(errno));
+        }
+        return -1;
+    }
+
+    /* Verify that the filedescriptor is usable for FD_SET() */
+    if (ctx->s > FD_SETSIZE) {
+        if (ctx->debug) {
+            fprintf(stderr, "ERROR Filedescriptor %d beyond FD_SETSIZE (%d)\n",
+                    ctx->s, FD_SETSIZE);
+        }
+        errno = EINVAL;
+        return -1;
+    }
+#endif
+
     return 0;
 }
 
 static void _modbus_rtu_nodev_close(modbus_t *ctx)
 {
+#if defined(_WIN32)
+    /* Nothing to do */
+#else
+    if (ctx->s != -1) {
+        close(ctx->s);
+        ctx->s = -1;
+    }
+#endif
+
     return;
 }
 
@@ -1337,8 +1397,8 @@ static int _modbus_rtu_nodev_select(modbus_t *ctx, fd_set *rset,
                                     struct timeval *tv, int length_to_read)
 {
     modbus_rtu_nodev_t *ctx_rtu_nodev;
-    int rv;
     uint32_t to_sec, to_usec;
+    int rv;
 
     if (tv->tv_sec < 0 || tv->tv_sec > 10 || tv->tv_usec < 0 || tv->tv_usec > 999999) {
         if (ctx->debug) {
@@ -1442,11 +1502,22 @@ modbus_t *modbus_new_rtu_nodev(int (*nodev_send)(const uint8_t *req, int req_len
                                int (*nodev_recv)(uint8_t *rsp, int rsp_length),
                                int (*nodev_poll)(uint32_t to_sec, uint32_t to_usec))
 {
+    /* For _modbus_rtu_nodev_connect() */
+    static const char *filename = "/dev/null";
+
     modbus_t *ctx;
     modbus_rtu_nodev_t *ctx_rtu_nodev;
 
     ctx = (modbus_t *)malloc(sizeof(modbus_t));
     if (ctx == NULL) {
+        /* modbus_new_rtu() does not set errno here
+         *
+         * Modern Unix systems set errno to ENOMEM, if not enough memory is available for malloc().
+         * Microsoft documents similar behaviour for Windows systems.
+         *
+         * In general C does not require malloc() to set errno => Set errno explicitly.
+         */
+        errno = ENOMEM;
         return NULL;
     }
 
@@ -1460,12 +1531,15 @@ modbus_t *modbus_new_rtu_nodev(int (*nodev_send)(const uint8_t *req, int req_len
     }
     ctx_rtu_nodev = (modbus_rtu_nodev_t *)ctx->backend_data;
 
-    /*
-     * Device entry is unused, but must be present!
-     * _modbus_rtu_free() calls free() on it.
-     * It is allowed to call free() with NULL as parameter.
-     */
-    ctx_rtu_nodev->device = NULL;
+    /* Device name and \0 */
+    ctx_rtu_nodev->device = (char *)malloc((strlen(filename) + 1) * sizeof(char));
+    if (ctx_rtu_nodev->device == NULL) {
+        modbus_free(ctx->backend_data);
+        modbus_free(ctx);
+        errno = ENOMEM;
+        return NULL;
+    }
+    strcpy(ctx_rtu_nodev->device, filename);
 
     ctx_rtu_nodev->send = nodev_send;
     ctx_rtu_nodev->recv = nodev_recv;
