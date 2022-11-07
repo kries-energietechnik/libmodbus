@@ -143,9 +143,9 @@ if test "$os_sunos" = "true"; then
 fi
 
 # Check for RS485 support (Linux kernel version 2.6.28+)
-AC_CHECK_DECLS([TIOCSRS485], [], [], [[#include <sys/ioctl.h>]])
+#AC_CHECK_DECLS([TIOCSRS485], [], [], [[#include <sys/ioctl.h>]])
 # Check for RTS flags
-AC_CHECK_DECLS([TIOCM_RTS], [], [], [[#include <sys/ioctl.h>]])
+#AC_CHECK_DECLS([TIOCM_RTS], [], [], [[#include <sys/ioctl.h>]])
 
 WARNING_CFLAGS="-Wall \
 -Wmissing-declarations -Wmissing-prototypes \
