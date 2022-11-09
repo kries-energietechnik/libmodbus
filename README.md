@@ -1,3 +1,23 @@
+# libmodbus with nodev-backend
+
+This fork of libmodbus allows to use custom I/O-functions for RTU-communication as master.  
+Intended for systems where the application has no direct access to the bus via local interface.
+
+Custom I/O-functions can be registered with the new API function modbus_new_rtu_nodev():
+<pre>
+modbus_t* modbus_new_rtu_nodev(int (*nodev_send)(const uint8_t *req, int req_length),
+                               int (*nodev_recv)(uint8_t *rsp, int rsp_length),
+                               int (*nodev_poll)(uint32_t to_sec, uint32_t to_usec));
+</pre>
+
+The parameters are pointers to the callback functions that libmodbus will call instead of
+internal interface access.  
+*nodev_send()* must transfer data to the bus, *nodev_recv()* must return the received data
+and *nodev_poll()* must block until data is available or timeout.
+
+The returned context must not be used with the API-function groups modbus_rtu_get_\*() and
+modbus_rtu_set_\*() for serial interface configuration.
+
 # A groovy modbus library
 
 ![Build Status](https://github.com/stephane/libmodbus/actions/workflows/build.yml/badge.svg)
