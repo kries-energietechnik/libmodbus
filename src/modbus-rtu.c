@@ -1357,7 +1357,7 @@ static int _modbus_rtu_nodev_connect(modbus_t *ctx)
 #endif
     ctx_rtu_nodev = (modbus_rtu_nodev_t *)ctx->backend_data;
     ctx->s = open(ctx_rtu_nodev->device, flags);
-    if (ctx->s == -1) {
+    if (ctx->s < 0) {
         if (ctx->debug) {
             fprintf(stderr, "ERROR Can't open the file %s (%s)\n",
                     ctx_rtu_nodev->device, strerror(errno));
