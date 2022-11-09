@@ -1366,7 +1366,7 @@ static int _modbus_rtu_nodev_connect(modbus_t *ctx)
     }
 
     /* Verify that the filedescriptor is usable for FD_SET() */
-    if (ctx->s > FD_SETSIZE) {
+    if (ctx->s >= FD_SETSIZE) {
         if (ctx->debug) {
             fprintf(stderr, "ERROR Filedescriptor %d beyond FD_SETSIZE (%d)\n",
                     ctx->s, FD_SETSIZE);
