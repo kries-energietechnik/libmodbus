@@ -1371,6 +1371,7 @@ static int _modbus_rtu_nodev_connect(modbus_t *ctx)
             fprintf(stderr, "ERROR Filedescriptor %d beyond FD_SETSIZE (%d)\n",
                     ctx->s, FD_SETSIZE);
         }
+        close(ctx->s);
         errno = EINVAL;
         return -1;
     }
