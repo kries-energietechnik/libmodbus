@@ -290,3 +290,84 @@ void modbus_set_float(float f, uint16_t *dest)
     dest[0] = (uint16_t) i;
     dest[1] = (uint16_t) (i >> 16);
 }
+
+/*
+ * ------------------------------------------------------------------------------------------------
+ * 2022-11-10 Kries-Energietechnik GmbH & Co. KG: Backend and API for nodev I/O added
+ */
+
+/* Get a uint32_t from 4 bytes (Modbus) without any conversion (ABCD) */
+uint32_t modbus_get_uint32_abcd(const uint16_t *src)
+{
+    uint32_t i;
+    uint8_t a, b, c, d;
+
+    a = (src[0] >> 8) & 0xFF;
+    b = (src[0] >> 0) & 0xFF;
+    c = (src[1] >> 8) & 0xFF;
+    d = (src[1] >> 0) & 0xFF;
+
+    i = (a << 24) |
+        (b << 16) |
+        (c << 8) |
+        (d << 0);
+
+    return i;
+}
+
+/* Get a uint32 from 4 bytes (Modbus) in inversed format (DCBA) */
+uint32_t modbus_get_uint32_dcba(const uint16_t *src)
+{
+    uint32_t i;
+    uint8_t a, b, c, d;
+
+    a = (src[0] >> 8) & 0xFF;
+    b = (src[0] >> 0) & 0xFF;
+    c = (src[1] >> 8) & 0xFF;
+    d = (src[1] >> 0) & 0xFF;
+
+    i = (d << 24) |
+        (c << 16) |
+        (b << 8) |
+        (a << 0);
+
+    return i;
+}
+
+/* Get a uint32 from 4 bytes (Modbus) with swapped bytes (BADC) */
+uint32_t modbus_get_uint32_badc(const uint16_t *src)
+{
+    uint32_t i;
+    uint8_t a, b, c, d;
+
+    a = (src[0] >> 8) & 0xFF;
+    b = (src[0] >> 0) & 0xFF;
+    c = (src[1] >> 8) & 0xFF;
+    d = (src[1] >> 0) & 0xFF;
+
+    i = (b << 24) |
+        (a << 16) |
+        (d << 8) |
+        (c << 0);
+
+    return i;
+}
+
+/* Get a uint32 from 4 bytes (Modbus) with swapped words (CDAB) */
+uint32_t modbus_get_uint32_cdab(const uint16_t *src)
+{
+    uint32_t i;
+    uint8_t a, b, c, d;
+
+    a = (src[0] >> 8) & 0xFF;
+    b = (src[0] >> 0) & 0xFF;
+    c = (src[1] >> 8) & 0xFF;
+    d = (src[1] >> 0) & 0xFF;
+
+    i = (c << 24) |
+        (d << 16) |
+        (a << 8) |
+        (b << 0);
+
+    return i;
+}

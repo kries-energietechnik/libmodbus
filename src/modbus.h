@@ -321,6 +321,13 @@ MODBUS_API void modbus_set_float_dcba(float f, uint16_t *dest);
 MODBUS_API void modbus_set_float_badc(float f, uint16_t *dest);
 MODBUS_API void modbus_set_float_cdab(float f, uint16_t *dest);
 
+/* 2022-11-10 Kries-Energietechnik GmbH & Co. KG: API for nodev I/O added */
+MODBUS_API uint32_t modbus_get_uint32_abcd(const uint16_t *src);
+MODBUS_API uint32_t modbus_get_uint32_dcba(const uint16_t *src);
+MODBUS_API uint32_t modbus_get_uint32_badc(const uint16_t *src);
+MODBUS_API uint32_t modbus_get_uint32_cdab(const uint16_t *src);
+
+#include "modbus-tcp.h"
 #include "modbus-rtu.h"
 #include "modbus-tcp.h"
 
