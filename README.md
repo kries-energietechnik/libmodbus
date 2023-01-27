@@ -30,6 +30,14 @@ uint32_t modbus_get_uint32_badc(const uint16_t *src);
 uint32_t modbus_get_uint32_cdab(const uint16_t *src);
 </pre>
 
+<pre>
+void modbus_set_uint32_abcd(uint32_t i, uint16_t *dest);
+void modbus_set_uint32_dcba(uint32_t i, uint16_t *dest);
+void modbus_set_uint32_badc(uint32_t i, uint16_t *dest);
+void modbus_set_uint32_cdab(uint32_t i, uint16_t *dest);
+</pre>
+
+
 # A groovy modbus library
 
 ![Build Status](https://github.com/stephane/libmodbus/actions/workflows/build.yml/badge.svg)
