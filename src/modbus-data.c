@@ -371,3 +371,71 @@ uint32_t modbus_get_uint32_cdab(const uint16_t *src)
 
     return i;
 }
+
+/* Set a uint32 to 4 bytes for Modbus w/o any conversion (ABCD) */
+void modbus_set_uint32_abcd(uint32_t i, uint16_t *dest)
+{
+    uint8_t *out = (uint8_t *) dest;
+    uint8_t a, b, c, d;
+
+    a = (i >> 24) & 0xFF;
+    b = (i >> 16) & 0xFF;
+    c = (i >> 8) & 0xFF;
+    d = (i >> 0) & 0xFF;
+
+    out[0] = a;
+    out[1] = b;
+    out[2] = c;
+    out[3] = d;
+}
+
+/* Set a uint32 to 4 bytes for Modbus in inversed format (DCBA) */
+void modbus_set_uint32_dcba(uint32_t i, uint16_t *dest)
+{
+    uint8_t *out = (uint8_t *) dest;
+    uint8_t a, b, c, d;
+
+    a = (i >> 24) & 0xFF;
+    b = (i >> 16) & 0xFF;
+    c = (i >> 8) & 0xFF;
+    d = (i >> 0) & 0xFF;
+
+    out[0] = d;
+    out[1] = c;
+    out[2] = b;
+    out[3] = a;
+}
+
+/* Set a uint32 to 4 bytes for Modbus with swapped bytes (BADC) */
+void modbus_set_uint32_badc(uint32_t i, uint16_t *dest)
+{
+    uint8_t *out = (uint8_t *) dest;
+    uint8_t a, b, c, d;
+
+    a = (i >> 24) & 0xFF;
+    b = (i >> 16) & 0xFF;
+    c = (i >> 8) & 0xFF;
+    d = (i >> 0) & 0xFF;
+
+    out[0] = b;
+    out[1] = a;
+    out[2] = d;
+    out[3] = c;
+}
+
+/* Set a uint32 to 4 bytes for Modbus with with swapped words (CDAB) */
+void modbus_set_uint32_cdab(uint32_t i, uint16_t *dest)
+{
+    uint8_t *out = (uint8_t *) dest;
+    uint8_t a, b, c, d;
+
+    a = (i >> 24) & 0xFF;
+    b = (i >> 16) & 0xFF;
+    c = (i >> 8) & 0xFF;
+    d = (i >> 0) & 0xFF;
+
+    out[0] = c;
+    out[1] = d;
+    out[2] = a;
+    out[3] = b;
+}

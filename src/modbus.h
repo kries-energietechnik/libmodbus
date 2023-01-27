@@ -327,6 +327,11 @@ MODBUS_API uint32_t modbus_get_uint32_dcba(const uint16_t *src);
 MODBUS_API uint32_t modbus_get_uint32_badc(const uint16_t *src);
 MODBUS_API uint32_t modbus_get_uint32_cdab(const uint16_t *src);
 
+MODBUS_API void modbus_set_uint32_abcd(uint32_t i, uint16_t *dest);
+MODBUS_API void modbus_set_uint32_dcba(uint32_t i, uint16_t *dest);
+MODBUS_API void modbus_set_uint32_badc(uint32_t i, uint16_t *dest);
+MODBUS_API void modbus_set_uint32_cdab(uint32_t i, uint16_t *dest);
+
 #include "modbus-tcp.h"
 #include "modbus-rtu.h"
 #include "modbus-tcp.h"
