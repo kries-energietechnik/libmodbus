@@ -58,7 +58,8 @@ int equal_dword(uint16_t *tab_reg, const uint32_t value)
 
 int main(int argc, char *argv[])
 {
-    const int NB_REPORT_SLAVE_ID = 10;
+    /* Length of report slave ID response slave ID + ON/OFF + 'LMB' + version */
+    const int NB_REPORT_SLAVE_ID = 2 + 3 + strlen(LIBMODBUS_VERSION_STRING);
     uint8_t *tab_rp_bits = NULL;
     uint16_t *tab_rp_registers = NULL;
     uint16_t *tab_rp_registers_bad = NULL;
@@ -77,6 +78,7 @@ int main(int argc, char *argv[])
     int use_backend;
     int success = FALSE;
     int old_slave;
+    char *ip_or_device;
 
     if (argc > 1) {
         if (strcmp(argv[1], "tcp") == 0) {
@@ -86,8 +88,9 @@ int main(int argc, char *argv[])
         } else if (strcmp(argv[1], "rtu") == 0) {
             use_backend = RTU;
         } else {
-            printf("Usage:\n  %s [tcp|tcppi|rtu] - Modbus client for unit testing\n\n",
-                   argv[0]);
+            printf("Modbus client for unit testing\n");
+            printf("Usage:\n  %s [tcp|tcppi|rtu]\n", argv[0]);
+            printf("Eg. tcp 127.0.0.1 or rtu /dev/ttyUSB1\n\n");
             exit(1);
         }
     } else {
@@ -95,17 +98,36 @@ int main(int argc, char *argv[])
         use_backend = TCP;
     }
 
-    if (use_backend == TCP) {
-        ctx = modbus_new_tcp("127.0.0.1", 1502);
-    } else if (use_backend == TCP_PI) {
-        ctx = modbus_new_tcp_pi("::1", "1502");
+    if (argc > 2) {
+        ip_or_device = argv[2];
     } else {
-        ctx = modbus_new_rtu("/dev/ttyUSB1", 115200, 'N', 8, 1);
+        switch (use_backend) {
+        case TCP:
+            ip_or_device = "127.0.0.1";
+            break;
+        case TCP_PI:
+            ip_or_device = "::1";
+            break;
+        case RTU:
+            ip_or_device = "/dev/ttyUSB1";
+            break;
+        default:
+            break;
+        }
+    }
+
+    if (use_backend == TCP) {
+        ctx = modbus_new_tcp(ip_or_device, 1502);
+    } else if (use_backend == TCP_PI) {
+        ctx = modbus_new_tcp_pi(ip_or_device, "1502");
+    } else {
+        ctx = modbus_new_rtu(ip_or_device, 115200, 'N', 8, 1);
     }
     if (ctx == NULL) {
         fprintf(stderr, "Unable to allocate libmodbus context\n");
         return -1;
     }
+
     modbus_set_debug(ctx, TRUE);
     modbus_set_error_recovery(
         ctx, MODBUS_ERROR_RECOVERY_LINK | MODBUS_ERROR_RECOVERY_PROTOCOL);

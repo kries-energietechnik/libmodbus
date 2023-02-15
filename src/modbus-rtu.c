@@ -12,9 +12,8 @@
 #ifndef _MSC_VER
 #include <unistd.h>
 #endif
-#include <assert.h>
-
 #include "modbus-private.h"
+#include <assert.h>
 
 #include "modbus-rtu-private.h"
 #include "modbus-rtu.h"
@@ -386,15 +385,10 @@ static int _modbus_rtu_check_integrity(modbus_t *ctx, uint8_t *msg, const int ms
 }
 
 /* Sets up a serial port for RTU communications */
+#if defined(_WIN32)
 static int _modbus_rtu_connect(modbus_t *ctx)
 {
-#if defined(_WIN32)
     DCB dcb;
-#else
-    struct termios tios;
-    speed_t speed;
-    int flags;
-#endif
     modbus_rtu_t *ctx_rtu = ctx->backend_data;
 
     if (ctx->debug) {
@@ -406,7 +400,6 @@ static int _modbus_rtu_connect(modbus_t *ctx)
                ctx_rtu->stop_bit);
     }
 
-#if defined(_WIN32)
     /* Some references here:
      * http://msdn.microsoft.com/en-us/library/aa450602.aspx
      */
@@ -445,74 +438,7 @@ static int _modbus_rtu_connect(modbus_t *ctx)
     dcb = ctx_rtu->old_dcb;
 
     /* Speed setting */
-    switch (ctx_rtu->baud) {
-    case 110:
-        dcb.BaudRate = CBR_110;
-        break;
-    case 300:
-        dcb.BaudRate = CBR_300;
-        break;
-    case 600:
-        dcb.BaudRate = CBR_600;
-        break;
-    case 1200:
-        dcb.BaudRate = CBR_1200;
-        break;
-    case 2400:
-        dcb.BaudRate = CBR_2400;
-        break;
-    case 4800:
-        dcb.BaudRate = CBR_4800;
-        break;
-    case 9600:
-        dcb.BaudRate = CBR_9600;
-        break;
-    case 14400:
-        dcb.BaudRate = CBR_14400;
-        break;
-    case 19200:
-        dcb.BaudRate = CBR_19200;
-        break;
-    case 38400:
-        dcb.BaudRate = CBR_38400;
-        break;
-    case 57600:
-        dcb.BaudRate = CBR_57600;
-        break;
-    case 115200:
-        dcb.BaudRate = CBR_115200;
-        break;
-    case 230400:
-        /* CBR_230400 - not defined */
-        dcb.BaudRate = 230400;
-        break;
-    case 250000:
-        dcb.BaudRate = 250000;
-        break;
-    case 256000:
-        dcb.BaudRate = 256000;
-        break;
-    case 460800:
-        dcb.BaudRate = 460800;
-        break;
-    case 500000:
-        dcb.BaudRate = 500000;
-        break;
-    case 921600:
-        dcb.BaudRate = 921600;
-        break;
-    case 1000000:
-        dcb.BaudRate = 1000000;
-        break;
-    default:
-        dcb.BaudRate = CBR_9600;
-        if (ctx->debug) {
-            fprintf(stderr,
-                    "WARNING Unknown baud rate %d for %s (B9600 used)\n",
-                    ctx_rtu->baud,
-                    ctx_rtu->device);
-        }
-    }
+    dcb.BaudRate = ctx_rtu->baud;
 
     /* Data bits */
     switch (ctx_rtu->data_bit) {
@@ -574,39 +500,16 @@ static int _modbus_rtu_connect(modbus_t *ctx)
         ctx_rtu->w_ser.fd = INVALID_HANDLE_VALUE;
         return -1;
     }
+
+    return 0;
+}
 #else
-    /* The O_NOCTTY flag tells UNIX that this program doesn't want
-       to be the "controlling terminal" for that port. If you
-       don't specify this then any input (such as keyboard abort
-       signals and so forth) will affect your process
 
-       Timeouts are ignored in canonical input mode or when the
-       NDELAY option is set on the file via open or fcntl */
-    flags = O_RDWR | O_NOCTTY | O_NDELAY | O_EXCL;
-#ifdef O_CLOEXEC
-    flags |= O_CLOEXEC;
-#endif
+static speed_t _get_termios_speed(int baud, int debug)
+{
+    speed_t speed;
 
-    ctx->s = open(ctx_rtu->device, flags);
-    if (ctx->s < 0) {
-        if (ctx->debug) {
-            fprintf(stderr,
-                    "ERROR Can't open the device %s (%s)\n",
-                    ctx_rtu->device,
-                    strerror(errno));
-        }
-        return -1;
-    }
-
-    /* Save */
-    tcgetattr(ctx->s, &ctx_rtu->old_tios);
-
-    memset(&tios, 0, sizeof(struct termios));
-
-    /* C_ISPEED     Input baud (new interface)
-       C_OSPEED     Output baud (new interface)
-    */
-    switch (ctx_rtu->baud) {
+    switch (baud) {
     case 110:
         speed = B110;
         break;
@@ -706,15 +609,77 @@ static int _modbus_rtu_connect(modbus_t *ctx)
 #endif
     default:
         speed = B9600;
-        if (ctx->debug) {
-            fprintf(stderr,
-                    "WARNING Unknown baud rate %d for %s (B9600 used)\n",
-                    ctx_rtu->baud,
-                    ctx_rtu->device);
+        if (debug) {
+            fprintf(stderr, "WARNING Unknown baud rate %d (B9600 used)\n", baud);
         }
     }
 
+    return speed;
+}
+
+/* POSIX */
+static int _modbus_rtu_connect(modbus_t *ctx)
+{
+    struct termios tios;
+    int flags;
+    speed_t speed;
+    modbus_rtu_t *ctx_rtu = ctx->backend_data;
+
+    if (ctx->debug) {
+        printf("Opening %s at %d bauds (%c, %d, %d)\n",
+               ctx_rtu->device,
+               ctx_rtu->baud,
+               ctx_rtu->parity,
+               ctx_rtu->data_bit,
+               ctx_rtu->stop_bit);
+    }
+
+    /* The O_NOCTTY flag tells UNIX that this program doesn't want
+       to be the "controlling terminal" for that port. If you
+       don't specify this then any input (such as keyboard abort
+       signals and so forth) will affect your process
+
+       Timeouts are ignored in canonical input mode or when the
+       NDELAY option is set on the file via open or fcntl */
+    flags = O_RDWR | O_NOCTTY | O_NDELAY | O_EXCL;
+#ifdef O_CLOEXEC
+    flags |= O_CLOEXEC;
+#endif
+
+    ctx->s = open(ctx_rtu->device, flags);
+    if (ctx->s < 0) {
+        if (ctx->debug) {
+            fprintf(stderr,
+                    "ERROR Can't open the device %s (%s)\n",
+                    ctx_rtu->device,
+                    strerror(errno));
+        }
+        return -1;
+    }
+
+    /* Save */
+    tcgetattr(ctx->s, &ctx_rtu->old_tios);
+
+    memset(&tios, 0, sizeof(struct termios));
+
+    /* C_ISPEED     Input baud (new interface)
+       C_OSPEED     Output baud (new interface)
+    */
+
     /* Set the baud rate */
+
+    /*
+    On MacOS, constants of baud rates are equal to the integer in argument but
+    that's not the case under Linux so we have to find the corresponding
+    constant. Until the code is upgraded to termios2, the list of possible
+    values is limited (no 14400 for example).
+    */
+    if (9600 == B9600) {
+        speed = ctx_rtu->baud;
+    } else {
+        speed = _get_termios_speed(ctx_rtu->baud, ctx->debug);
+    }
+
     if ((cfsetispeed(&tios, speed) < 0) || (cfsetospeed(&tios, speed) < 0)) {
         close(ctx->s);
         ctx->s = -1;
@@ -894,9 +859,22 @@ static int _modbus_rtu_connect(modbus_t *ctx)
         ctx->s = -1;
         return -1;
     }
-#endif
 
     return 0;
+}
+#endif
+
+// FIXME Temporary solution before rewriting Windows RTU backend
+static unsigned int _modbus_rtu_is_connected(modbus_t *ctx)
+{
+#if defined(_WIN32)
+    modbus_rtu_t *ctx_rtu = ctx->backend_data;
+
+    /* Check if file handle is valid */
+    return ctx_rtu->w_ser.fd != INVALID_HANDLE_VALUE;
+#else
+    return ctx->s >= 0;
+#endif
 }
 
 int modbus_rtu_set_serial_mode(modbus_t *ctx, int mode)
@@ -1217,6 +1195,7 @@ const modbus_backend_t _modbus_rtu_backend = {
     _modbus_rtu_check_integrity,
     _modbus_rtu_pre_check_confirmation,
     _modbus_rtu_connect,
+    _modbus_rtu_is_connected,
     _modbus_rtu_close,
     _modbus_rtu_flush,
     _modbus_rtu_select,
@@ -1267,7 +1246,12 @@ modbus_new_rtu(const char *device, int baud, char parity, int data_bit, int stop
         errno = ENOMEM;
         return NULL;
     }
+
+#if defined(_WIN32)
+    strcpy_s(ctx_rtu->device, strlen(device) + 1, device);
+#else
     strcpy(ctx_rtu->device, device);
+#endif
 
     ctx_rtu->baud = baud;
     if (parity == 'N' || parity == 'E' || parity == 'O') {
@@ -1493,6 +1477,7 @@ static const modbus_backend_t _modbus_rtu_nodev_backend = {
     _modbus_rtu_check_integrity,
     _modbus_rtu_pre_check_confirmation,
     _modbus_rtu_nodev_connect,
+    _modbus_rtu_is_connected,
     _modbus_rtu_nodev_close,
     _modbus_rtu_nodev_flush,
     _modbus_rtu_nodev_select,
